@@ -8,6 +8,8 @@ const motion = new AirflowMotion();
 const tone = new TiltTone();
 let airflow = 35, gainTarget = 0;
 let orientationPermission = 'unknown', orientationWaitingSince = 0;
+const hasNotes = () => role==='chanter'||role==='solo';
+const hasSound = () => role==='bag'||role==='solo';
 $('sensitivity').value=Math.round(motion.sensitivity*100);
 $('sensitivityValue').textContent=Math.round(motion.sensitivity*100)+'%';
 $('fade').value=Math.round(motion.releaseSeconds*10);
@@ -63,7 +65,7 @@ for (let i=0;i<notes.length;i++) {
   const button=document.createElement('button');button.className='hole';
   button.textContent=notes[i].name;button.setAttribute('aria-label','Hold '+notes[i].name);
   button.addEventListener('pointerdown',ev=>{
-    if(role!=='chanter'||(ev.pointerType==='mouse'&&ev.button!==0))return;
+    if(!hasNotes()||(ev.pointerType==='mouse'&&ev.button!==0))return;
     ev.preventDefault();button.setPointerCapture(ev.pointerId);
     heldNotes.set('pointer:'+ev.pointerId,i);updateHeldNotes();
   });
@@ -72,7 +74,7 @@ for (let i=0;i<notes.length;i++) {
   button.addEventListener('pointercancel',release);
   button.addEventListener('lostpointercapture',release);
   button.addEventListener('keydown',ev=>{
-    if(role==='chanter'&&[' ','Enter'].includes(ev.key)) {
+    if(hasNotes()&&[' ','Enter'].includes(ev.key)) {
       ev.preventDefault();if(ev.repeat)return;
       heldNotes.set('key:'+i+':'+ev.key,i);updateHeldNotes();
     }
@@ -88,22 +90,42 @@ for (let i=0;i<notes.length;i++) {
   button.addEventListener('contextmenu',ev=>ev.preventDefault());
   $('holes').append(button);
 }
-window.addEventListener('blur',()=>{if(role==='chanter')releaseNotes();});
-window.addEventListener('pagehide',()=>{if(role==='chanter')releaseNotes();});
+window.addEventListener('blur',()=>{if(hasNotes())releaseNotes();});
+window.addEventListener('pagehide',()=>{if(hasNotes())releaseNotes();});
 drawHoles();
+function showInstrument(nextRole) {
+  role=nextRole;session++;
+  $('start').hidden=true;$('play').hidden=false;
+  $('sessionCard').hidden=nextRole==='solo';
+  $('chanter').hidden=!hasNotes();$('bag').hidden=!hasSound();
+  $('securityNotice').hidden=!hasSound()||window.isSecureContext;
+  $('chanterLabel').textContent=nextRole==='solo'?'ONE PHONE · NOTES':'PHONE 1 · CHANTER';
+  $('bagLabel').textContent=nextRole==='solo'?'ONE PHONE · MOVEMENT & SOUND':'PHONE 2 · BAG';
+  $('chanterHelp').textContent=nextRole==='solo'?'Keep a note held while you move this phone. Movement controls volume and tilt changes tone brightness.':'Share the room code with phone 2. Hold a note here; move phone 2 to control volume. Moving this button phone does not control volume.';
+  $('bagHelp').textContent=nextRole==='solo'?'First tap Start audio + movement and allow sensor access. Then hold a note above while moving this phone to shape the sound.':'Tap Start audio + movement and allow sensor access. Hold a note on phone 1. Move this phone to change volume; tilt it to change tone brightness.';
+  $('playStatus').textContent=nextRole==='solo'?'Tap Start audio + movement, then hold a note above and move this phone.':'Tap Start audio + movement on this phone. Keep a note held on phone 1.';
+  $('diagRoomLabel').textContent=nextRole==='solo'?'Local finger note':'Server airflow / finger note';
+}
+function enterSolo() {
+  error();code='';
+  room.holes='1111111';room.noteHeld=false;room.energy=0;room.tilt=0;
+  showInstrument('solo');drawHoles();
+  history.replaceState(null,'',location.pathname+'?mode=solo');
+}
 async function join(next,mode) {
-  try { error(); await api({action:'join',code:next,role:mode}); code=next;role=mode;session++;
-    $('code').textContent=code; $('start').hidden=true;$('play').hidden=false;
-    $('chanter').hidden=mode!=='chanter';$('bag').hidden=mode!=='bag';
-    $('securityNotice').hidden=mode!=='bag'||window.isSecureContext;
+  try { error(); await api({action:'join',code:next,role:mode}); code=next;showInstrument(mode);
+    $('code').textContent=code;
     history.replaceState(null,'','?room='+code);
   } catch(e) { error(e.message); }
 }
+$('chooseSolo').onclick=enterSolo;
+$('chooseMultiple').onclick=()=>{$('modeChoices').hidden=true;$('multipleSetup').hidden=false;};
+$('backToModes').onclick=()=>{$('multipleSetup').hidden=true;$('modeChoices').hidden=false;error();};
 $('create').onclick=async()=>{try{const data=await api({action:'create'});await join(data.code,'chanter');}catch(e){error(e.message);}};
 $('join').onclick=()=>join($('entry').value.trim().toUpperCase(),'bag');
 $('entry').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
 $('entry').oninput=()=>{ $('entry').value=$('entry').value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6); };
-$('leave').onclick=()=>{if(role==='chanter')releaseNotes();session++;useManual();tone.reset();orientationPermission='unknown';tilt=0;stopAudio();role='';code='';$('play').hidden=true;$('start').hidden=false;history.replaceState(null,'',location.pathname);};
+$('leave').onclick=()=>{if(hasNotes())releaseNotes();session++;useManual();tone.reset();orientationPermission='unknown';tilt=0;stopAudio();role='';code='';$('play').hidden=true;$('start').hidden=false;$('modeChoices').hidden=false;$('multipleSetup').hidden=true;history.replaceState(null,'',location.pathname);};
 
 async function startAudio() {
   if (audioLoading) return;
@@ -124,7 +146,7 @@ async function startAudio() {
       const response=await fetch('/audio/'+name+'.wav');if(!response.ok)throw new Error('Sound could not load');
       return ctx.decodeAudioData(await response.arrayBuffer());
     }));
-    if (attempt !== audioAttempt || role !== 'bag') { await ctx.close(); return; }
+    if (attempt !== audioAttempt || !hasSound()) { await ctx.close(); return; }
     const melody=ctx.createBufferSource(), bass=ctx.createBufferSource();
     const melodyGain=ctx.createGain(), droneGain=ctx.createGain(), filter=ctx.createBiquadFilter();
     melody.buffer=chanter;bass.buffer=drone;melody.loop=bass.loop=true;
@@ -167,7 +189,7 @@ $('sensors').onclick=async()=>{
   sensorStatus('Requesting motion access...');
   $('tiltStatus').textContent='Waiting for tilt permission and data.';
   try{
-    if(!window.isSecureContext)throw new Error('Movement requires HTTPS. Open the same trusted HTTPS server address on both phones.');
+    if(!window.isSecureContext)throw new Error(role==='solo'?'Movement requires HTTPS. Open this app from a trusted HTTPS address.':'Movement requires HTTPS. Open the same trusted HTTPS server address on both phones.');
     if(typeof DeviceMotionEvent==='undefined')throw new Error('This browser does not provide motion events.');
     // Both requests must start inside the same Safari tap activation.
     const motionRequest=typeof DeviceMotionEvent.requestPermission==='function' ? DeviceMotionEvent.requestPermission() : Promise.resolve('granted');
@@ -190,7 +212,7 @@ $('startMovement').onclick=()=>{
   return Promise.all([permission,playback]);
 };
 window.addEventListener('devicemotion',ev=>{
-  if(role!=='bag'||!['waiting','motion'].includes(mode))return;
+  if(!hasSound()||!['waiting','motion'].includes(mode))return;
   if(!motion.sample(ev,performance.now()))return;
   if(mode!=='motion') {
     mode='motion';$('sensors').textContent='Movement enabled';
@@ -202,7 +224,7 @@ const screenAngle=()=>{
   return Number.isFinite(Number(window.orientation))?Number(window.orientation):0;
 };
 window.addEventListener('deviceorientation',ev=>{
-  if(role!=='bag'||(!['waiting','motion'].includes(mode)&&!(mode==='manual'&&orientationPermission==='granted')))return;
+  if(!hasSound()||(!['waiting','motion'].includes(mode)&&!(mode==='manual'&&orientationPermission==='granted')))return;
   const wasCalibrating=!!tone.calibration;
   if(!tone.sample(ev,screenAngle(),performance.now()))return;
   tilt=clamp(tone.screenForward,-90,90);
@@ -212,7 +234,7 @@ window.addEventListener('deviceorientation',ev=>{
 });
 $('calibrate').onclick=()=>{
   const tiltEnabled=['waiting','motion'].includes(mode)||(mode==='manual'&&orientationPermission==='granted');
-  if(role!=='bag'||!tiltEnabled||tone.last===null||performance.now()-tone.last>1000){
+  if(!hasSound()||!tiltEnabled||tone.last===null||performance.now()-tone.last>1000){
     $('tiltStatus').textContent='Enable movement and wait for live tilt data, then try Calibrate.';
     return;
   }
@@ -220,8 +242,8 @@ $('calibrate').onclick=()=>{
   $('tiltStatus').textContent='Hold the phone still in its normal playing position for one second...';
 };
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&role==='chanter')releaseNotes();
-  if(document.hidden&&role==='bag'&&['waiting','motion','permission'].includes(mode)) {
+  if(document.hidden&&hasNotes())releaseNotes();
+  if(document.hidden&&hasSound()&&['waiting','motion','permission'].includes(mode)) {
     permissionAttempt++;
     sensorFailure('Movement paused because this page was hidden. Return to this page and retry movement.');
     airflow=0;
@@ -234,7 +256,7 @@ document.addEventListener('visibilitychange',()=>{
 let lastFrame=performance.now(), lastDisplay=0;
 function updateLocal(now) {
   const dt=Math.min(.1,Math.max(0,(now-lastFrame)/1000));lastFrame=now;
-  if(role==='bag') {
+  if(hasSound()) {
     if(mode==='waiting'&&now-waitingSince>3000) sensorFailure('No usable acceleration events arrived. Check motion permission and use a browser with sensor support.');
     if(mode==='motion'&&now-motion.last>1500) sensorFailure('Motion data stopped arriving. Keep this page visible and retry movement.');
     if(tone.calibration&&now-tone.calibration.since>2500){
@@ -245,7 +267,7 @@ function updateLocal(now) {
     }
     airflow=mode==='manual'?Number($('manual').value):mode==='motion'?motion.step(now,dt):0;
     const filterFrequency=mode==='manual'&&tone.count===0?2600:tone.step(now,dt);
-    const noteActive=room.noteHeld && now-lastRoomRead<1500;
+    const noteActive=room.noteHeld && (role==='solo'||now-lastRoomRead<1500);
     const pressure=noteActive?clamp(airflow/100,0,1):0;
     gainTarget=pressure*.65;
     if(audio) {
@@ -259,14 +281,14 @@ function updateLocal(now) {
     if(now-lastDisplay>100) {
       lastDisplay=now;
       let reason;
-      if(!window.isSecureContext)reason='Motion blocked: this address is not trusted HTTPS. Use the same HTTPS address on both phones.';
+      if(!window.isSecureContext)reason=role==='solo'?'Motion blocked: this address is not trusted HTTPS. Reopen this app over HTTPS.':'Motion blocked: this address is not trusted HTTPS. Use the same HTTPS address on both phones.';
       else if(mode==='manual')reason=tone.count>0?'Manual airflow is fixed. Tilt still changes tone brightness.':'Manual mode: movement has no effect. Tap Start audio + movement on this phone.';
       else if(mode==='permission'||mode==='waiting')reason='Waiting for motion permission and usable sensor data.';
       else if(mode==='error')reason=$('sensorStatus').textContent;
       else if(!audio)reason='Motion is arriving, but audio is not started. Tap Start audio.';
       else if(audio.ctx.state!=='running')reason='Audio is paused. Tap Resume audio.';
-      else if(now-lastRoomRead>=1500)reason='Room updates stopped. Check the connection on both phones.';
-      else if(!room.noteHeld)reason='Hold a note button on phone 1 while moving this phone.';
+      else if(role!=='solo'&&now-lastRoomRead>=1500)reason='Room updates stopped. Check the connection on both phones.';
+      else if(!room.noteHeld)reason=role==='solo'?'Hold a note button above while moving this phone.':'Hold a note button on phone 1 while moving this phone.';
       else if(motion.target===0)reason='Hold the note and move this phone for volume; tilt changes tone brightness separately.';
       else reason='Movement controls volume. Tilt controls tone brightness.';
       if($('playStatus').textContent!==reason)$('playStatus').textContent=reason;
@@ -282,7 +304,7 @@ function updateLocal(now) {
       $('diagGain').textContent=audio?audio.melodyGain.gain.value.toFixed(3)+' -> '+gainTarget.toFixed(3)+' / drone '+audio.droneGain.gain.value.toFixed(3):'Audio not started (target '+gainTarget.toFixed(3)+')';
       $('diagAudio').textContent=audioError|| (audio?audio.ctx.state:audioLoading?'loading':'not started');
       $('audio').textContent=audio?(audio.ctx.state==='running'?'Audio is on':'Resume audio'):audioLoading?'Loading audio...':'Start audio';
-      $('diagRoom').textContent=room.energy.toFixed(1)+'% / '+(noteActive?'held '+notes[[...room.holes].filter(h=>h==='0').length].name:'no held note');
+      $('diagRoom').textContent=(role==='solo'?'Local':'Server')+' / '+(noteActive?'held '+notes[[...room.holes].filter(h=>h==='0').length].name:'no held note');
     }
   }
   requestAnimationFrame(updateLocal);
@@ -290,7 +312,7 @@ function updateLocal(now) {
 requestAnimationFrame(updateLocal);
 
 setInterval(async()=>{
-  if(!role||busy)return;busy=true;const currentSession=session;
+  if(!role||role==='solo'||busy)return;busy=true;const currentSession=session;
   try{
     if(role==='bag') await api({action:'update',code,role,energy:airflow,tilt});
     else await sendNoteState();
@@ -305,3 +327,5 @@ setInterval(async()=>{
     error();
   }catch(e){if(currentSession===session)error(e.message+'. Retrying...');}finally{busy=false;}
 },220);
+
+if(new URLSearchParams(location.search).get('mode')==='solo')enterSolo();

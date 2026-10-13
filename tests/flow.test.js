@@ -298,6 +298,27 @@ test('primary start requests motion and unlocks audio in the same tap, then moti
   assert.match(p.elements.playStatus.textContent,/Movement controls volume/);
 });
 
+test('alone mode combines local note buttons, movement and audio without a room',async()=>{
+  const p=phone(async()=>{throw Error('solo mode must not call the room API');});
+  p.elements.chooseSolo.onclick();
+  assert.equal(p.eval('role'),'solo');
+  assert.equal(p.elements.chanter.hidden,false);
+  assert.equal(p.elements.bag.hidden,false);
+  assert.equal(p.elements.sessionCard.hidden,true);
+  await p.elements.startMovement.onclick();
+  const note=p.elements.holes.children[3];
+  const pointer={pointerId:1,pointerType:'touch',preventDefault(){}};
+  note.listeners.pointerdown(pointer);
+  for(let i=0;i<35;i++){p.events.devicemotion(linear(1.62));p.tick();}
+  assert.equal(p.eval('room.noteHeld'),true);
+  assert.equal(p.eval('audio.melody.playbackRate.value'),440/334);
+  assert.ok(p.eval('audio.melodyGain.gain.value')>.25);
+  assert.match(p.elements.playStatus.textContent,/Movement controls volume/);
+  note.listeners.pointerup(pointer);p.tick(120);
+  assert.equal(p.eval('audio.melodyGain.gain.value'),0);
+  assert.equal(p.eval('audio.droneGain.gain.value'),0);
+});
+
 test('rotation alone changes tone but cannot inflate movement airflow',()=>{
   const m=new AirflowMotion(),tone=new TiltTone();
   tone.sample({beta:10,gamma:5},0,0);

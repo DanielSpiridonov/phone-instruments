@@ -12,7 +12,9 @@ The server listens on port 3000 by default. Set `PORT` to change it (for example
 
 For a PC-only check, open `http://localhost:3000`. A phone can use `http://YOUR_PC_LOCAL_IP:3000` for the manual slider, but Safari movement and tilt require a trusted HTTPS URL. Find your PC's IPv4 address with `ipconfig` on Windows. Allow Node through the firewall for private networks if needed.
 
-Create a room on the button phone, press and hold one of the eight large note buttons, and join with the six-character code on the moving phone, then tap **Start audio + movement** there. The manual airflow slider works over local HTTP. **Motion sensors on iPhone and many Android browsers require HTTPS**; host behind an HTTPS domain or tunnel to enable movement. Both phones must open the same server address.
+Choose **Alone** to play on one phone: tap **Start audio + movement**, allow sensor access, then hold a note while moving the same phone. Choose **Multiple devices** to create a room on the button phone and join with the six-character code on the moving phone. The manual airflow slider works over local HTTP. **Motion sensors on iPhone and many Android browsers require HTTPS**; host behind an HTTPS domain or tunnel to enable movement. In multiple-device mode, both phones must open the same server address.
+
+In alone mode, notes, motion processing, tilt and Web Audio all stay local to the phone; no room or second device is required. Holding a note selects pitch, movement controls volume, and tilt controls tone brightness.
 
 ## Hosting
 
@@ -65,7 +67,7 @@ Diagnostics show the raw acceleration axes, whether linear or gravity-corrected 
 
 ### Automated verification and remaining device check
 
-Run `node --test tests/flow.test.js` (no dependencies). Tests execute the shipped app with simulated motion and Web Audio controls, exercise manual 0/50/100% independently, and connect two isolated clients to the real Node room server. They cover null acceleration fallback, stationary gravity, movement attack/release, orientation permission, calibration, angle wrapping, portrait/landscape mapping, neutral return, local filter updates, manual airflow, room connection, held notes and the actual recording through the intended filter range.
+Run `node --test tests/flow.test.js` (no dependencies). Tests execute the shipped app with simulated motion and Web Audio controls, exercise one-phone play and manual 0/50/100% independently, and connect two isolated clients to the real Node room server. They cover null acceleration fallback, stationary gravity, movement attack/release, orientation permission, calibration, angle wrapping, portrait/landscape mapping, neutral return, local filter updates, manual airflow, room connection, held notes and the actual recording through the intended filter range.
 
 These tests do **not** verify a physical accelerometer, Safari's native audio engine, or speaker loudness. Complete the physical-phone checks above before treating device testing as passed. For a failure report, include the iPhone model/iOS version, HTTPS address status, motion and tilt status, raw acceleration and tilt, airflow, filter frequency, gain and audio-context state while still, moving and tilting.
 
