@@ -12,9 +12,9 @@ The server listens on port 3000 by default. Set `PORT` to change it (for example
 
 For a PC-only check, open `http://localhost:3000`. A phone can use `http://YOUR_PC_LOCAL_IP:3000` for the manual slider, but Safari movement and tilt require a trusted HTTPS URL. Find your PC's IPv4 address with `ipconfig` on Windows. Allow Node through the firewall for private networks if needed.
 
-Choose **Alone** to play on one phone: tap **Start audio + movement**, allow sensor access, then hold a note while moving the same phone. Choose **Multiple devices** to create a room on the button phone and join with the six-character code on the moving phone. The manual airflow slider works over local HTTP. **Motion sensors on iPhone and many Android browsers require HTTPS**; host behind an HTTPS domain or tunnel to enable movement. In multiple-device mode, both phones must open the same server address.
+Choose **Alone**, then select **Gaida** or **Viola**, to play on one phone: tap **Start audio + movement**, allow sensor access, then hold a note while moving the same phone. Choose **Multiple devices** to create a Gaida or Viola room on the button phone and join with the six-character code on the moving phone; the room's instrument loads automatically. The manual airflow slider works over local HTTP. **Motion sensors on iPhone and many Android browsers require HTTPS**; host behind an HTTPS domain or tunnel to enable movement. In multiple-device mode, both phones must open the same server address.
 
-In alone mode, notes, motion processing, tilt and Web Audio all stay local to the phone; no room or second device is required. Holding a note selects pitch, movement controls volume, and tilt controls tone brightness.
+In alone mode, notes, motion processing, tilt and Web Audio all stay local to the phone; no room or second device is required. Holding a note selects pitch, movement controls volume, and tilt controls tone brightness. Gaida uses its recorded chanter and drone; Viola uses an original synthesized bowed loop without a drone.
 
 ## Hosting
 
@@ -74,3 +74,5 @@ These tests do **not** verify a physical accelerometer, Safari's native audio en
 ## Audio source
 
 The chanter and drone loops were extracted, filtered, and repitched from [Gaida performance in Gela, Bulgaria](https://commons.wikimedia.org/wiki/File:%D0%93%D0%B0%D0%B9%D0%B4%D0%B0%D1%80%D1%81%D0%BA%D0%BE_%D0%BD%D0%B0%D0%B4%D1%81%D0%B2%D0%B8%D1%80%D0%B2%D0%B0%D0%BD%D0%B5_-_%D1%81._%D0%93%D0%B5%D0%BB%D0%B0,_03.08.2013.webm) by dr1ve0rd1e, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). This is an ensemble field recording, not separately recorded notes. The E-based pitches and button layout are a prototype approximation, not verified traditional fingering.
+
+The viola loop is generated entirely by `generate-viola.js` from harmonic oscillators, periodic bow texture, amplitude movement and vibrato. Run `node generate-viola.js` to reproduce `public/audio/viola.wav`. Its C3–C4 buttons form a simplified C-minor pitch ladder rather than simulated strings or traditional viola fingering.

@@ -207,6 +207,10 @@ test('real server preserves two-phone room, airflow and finger updates, assets a
   await new Promise((resolve,reject)=>{server.once('error',reject);server.once('exit',code=>reject(Error('server exit '+code)));server.stdout.once('data',resolve);});
   const request=(url,opts)=>fetch('http://127.0.0.1:'+port+url,opts);
   const post=body=>request('/api/room',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const violaRoom=await (await post({action:'create',instrument:'viola'})).json();
+  assert.equal(violaRoom.instrument,'viola');
+  const violaJoin=await (await post({action:'join',code:violaRoom.code,role:'bag'})).json();
+  assert.equal(violaJoin.instrument,'viola');
   const {code}=await (await post({action:'create'})).json();
   const fingers=phone(request),bag=phone(request);
   await fingers.eval(`join('${code}','chanter')`);await bag.eval(`join('${code}','bag')`);
@@ -223,7 +227,7 @@ test('real server preserves two-phone room, airflow and finger updates, assets a
   await bag.poll();bag.tick();
   assert.equal(bag.eval('audio.melodyGain.gain.value'),0);
   assert.equal(bag.eval('audio.droneGain.gain.value'),0);
-  for(const asset of ['/','/app.js','/motion.js','/audio/chanter.wav','/audio/drone.wav'])assert.equal((await request(asset)).status,200);
+  for(const asset of ['/','/app.js','/motion.js','/audio/chanter.wav','/audio/drone.wav','/audio/viola.wav'])assert.equal((await request(asset)).status,200);
   assert.equal((await request('/motion.js')).headers.get('cache-control'),'no-store');
   bag.elements.leave.onclick();bag.events.devicemotion(linear(9));
   assert.equal(bag.eval('audio'),null);assert.equal(bag.eval('mode'),'manual');
@@ -301,6 +305,7 @@ test('primary start requests motion and unlocks audio in the same tap, then moti
 test('alone mode combines local note buttons, movement and audio without a room',async()=>{
   const p=phone(async()=>{throw Error('solo mode must not call the room API');});
   p.elements.chooseSolo.onclick();
+  p.elements.soloGaida.onclick();
   assert.equal(p.eval('role'),'solo');
   assert.equal(p.elements.chanter.hidden,false);
   assert.equal(p.elements.bag.hidden,false);
@@ -317,6 +322,23 @@ test('alone mode combines local note buttons, movement and audio without a room'
   note.listeners.pointerup(pointer);p.tick(120);
   assert.equal(p.eval('audio.melodyGain.gain.value'),0);
   assert.equal(p.eval('audio.droneGain.gain.value'),0);
+});
+
+test('viola mode loads its own bowed voice, note range and no gaida drone',async()=>{
+  const p=phone(async()=>{throw Error('solo mode must not call the room API');});
+  p.elements.chooseSolo.onclick();p.elements.soloViola.onclick();
+  assert.equal(p.eval('selectedInstrument'),'viola');
+  assert.equal(p.elements.holes.children[0].textContent,'C3');
+  assert.equal(p.elements.holes.children[7].textContent,'C4');
+  await p.elements.startMovement.onclick();
+  const note=p.elements.holes.children[7];
+  const pointer={pointerId:2,pointerType:'touch',preventDefault(){}};
+  note.listeners.pointerdown(pointer);
+  for(let i=0;i<35;i++){p.events.devicemotion(linear(1.62));p.tick();}
+  assert.equal(p.eval('audio.bass'),null);
+  assert.equal(p.eval('audio.droneGain.gain.value'),0);
+  assert.equal(p.eval('audio.melody.playbackRate.value'),261.63/261.5);
+  assert.ok(p.eval('audio.melodyGain.gain.value')>.25);
 });
 
 test('rotation alone changes tone but cannot inflate movement airflow',()=>{

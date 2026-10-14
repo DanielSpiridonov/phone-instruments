@@ -1,5 +1,9 @@
 const $ = id => document.getElementById(id);
-const notes = [{name:'E4',hz:329.63},{name:'F♯4',hz:369.99},{name:'G♯4',hz:415.3},{name:'A4',hz:440},{name:'B4',hz:493.88},{name:'C♯5',hz:554.37},{name:'D5',hz:587.33},{name:'E5',hz:659.25}];
+const instruments = {
+  gaida:{name:'Gaida',baseHz:334,notes:[{name:'E4',hz:329.63},{name:'F♯4',hz:369.99},{name:'G♯4',hz:415.3},{name:'A4',hz:440},{name:'B4',hz:493.88},{name:'C♯5',hz:554.37},{name:'D5',hz:587.33},{name:'E5',hz:659.25}]},
+  viola:{name:'Viola',baseHz:261.5,notes:[{name:'C3',hz:130.81},{name:'D3',hz:146.83},{name:'E♭3',hz:155.56},{name:'F3',hz:174.61},{name:'G3',hz:196},{name:'A♭3',hz:207.65},{name:'B♭3',hz:233.08},{name:'C4',hz:261.63}]}
+};
+let selectedInstrument = 'gaida', notes = instruments.gaida.notes;
 const room = {holes:'1111111',noteHeld:false,energy:0,tilt:0,chanterAt:0,bagAt:0};
 let code = '', role = '', audio = null, tilt = 0, busy = false;
 let mode = 'manual', waitingSince = 0, permissionAttempt = 0, audioAttempt = 0;
@@ -10,6 +14,11 @@ let airflow = 35, gainTarget = 0;
 let orientationPermission = 'unknown', orientationWaitingSince = 0;
 const hasNotes = () => role==='chanter'||role==='solo';
 const hasSound = () => role==='bag'||role==='solo';
+function setInstrument(name) {
+  selectedInstrument=instruments[name]?name:'gaida';notes=instruments[selectedInstrument].notes;
+  $('gaidaCredit').hidden=selectedInstrument!=='gaida';$('violaCredit').hidden=selectedInstrument!=='viola';
+  drawHoles();
+}
 $('sensitivity').value=Math.round(motion.sensitivity*100);
 $('sensitivityValue').textContent=Math.round(motion.sensitivity*100)+'%';
 $('fade').value=Math.round(motion.releaseSeconds*10);
@@ -42,6 +51,7 @@ let noteQueue = Promise.resolve(), lastRoomRead = performance.now();
 function drawHoles() {
   const selected = [...room.holes].filter(h=>h==='0').length;
   [...$('holes').children].forEach((button,i)=>{
+    button.textContent=notes[i].name;button.setAttribute('aria-label','Hold '+notes[i].name);
     const active=room.noteHeld&&selected===i;
     button.classList.toggle('open',active);button.setAttribute('aria-pressed',active);
   });
@@ -106,26 +116,32 @@ function showInstrument(nextRole) {
   $('playStatus').textContent=nextRole==='solo'?'Tap Start audio + movement, then hold a note above and move this phone.':'Tap Start audio + movement on this phone. Keep a note held on phone 1.';
   $('diagRoomLabel').textContent=nextRole==='solo'?'Local finger note':'Server airflow / finger note';
 }
-function enterSolo() {
+function enterSolo(instrument=selectedInstrument) {
   error();code='';
+  setInstrument(instrument);
   room.holes='1111111';room.noteHeld=false;room.energy=0;room.tilt=0;
   showInstrument('solo');drawHoles();
-  history.replaceState(null,'',location.pathname+'?mode=solo');
+  history.replaceState(null,'',location.pathname+'?mode=solo&instrument='+selectedInstrument);
 }
 async function join(next,mode) {
-  try { error(); await api({action:'join',code:next,role:mode}); code=next;showInstrument(mode);
+  try { error(); const data=await api({action:'join',code:next,role:mode});setInstrument(data.instrument);code=next;showInstrument(mode);
     $('code').textContent=code;
     history.replaceState(null,'','?room='+code);
   } catch(e) { error(e.message); }
 }
-$('chooseSolo').onclick=enterSolo;
+$('chooseSolo').onclick=()=>{$('modeChoices').hidden=true;$('soloSetup').hidden=false;};
+$('backFromSolo').onclick=()=>{$('soloSetup').hidden=true;$('modeChoices').hidden=false;error();};
+$('soloGaida').onclick=()=>enterSolo('gaida');
+$('soloViola').onclick=()=>enterSolo('viola');
 $('chooseMultiple').onclick=()=>{$('modeChoices').hidden=true;$('multipleSetup').hidden=false;};
 $('backToModes').onclick=()=>{$('multipleSetup').hidden=true;$('modeChoices').hidden=false;error();};
-$('create').onclick=async()=>{try{const data=await api({action:'create'});await join(data.code,'chanter');}catch(e){error(e.message);}};
+async function createRoom(instrument) {try{const data=await api({action:'create',instrument});await join(data.code,'chanter');}catch(e){error(e.message);}}
+$('createGaida').onclick=()=>createRoom('gaida');
+$('createViola').onclick=()=>createRoom('viola');
 $('join').onclick=()=>join($('entry').value.trim().toUpperCase(),'bag');
 $('entry').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
 $('entry').oninput=()=>{ $('entry').value=$('entry').value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6); };
-$('leave').onclick=()=>{if(hasNotes())releaseNotes();session++;useManual();tone.reset();orientationPermission='unknown';tilt=0;stopAudio();role='';code='';$('play').hidden=true;$('start').hidden=false;$('modeChoices').hidden=false;$('multipleSetup').hidden=true;history.replaceState(null,'',location.pathname);};
+$('leave').onclick=()=>{if(hasNotes())releaseNotes();session++;useManual();tone.reset();orientationPermission='unknown';tilt=0;stopAudio();role='';code='';$('play').hidden=true;$('start').hidden=false;$('modeChoices').hidden=false;$('soloSetup').hidden=true;$('multipleSetup').hidden=true;history.replaceState(null,'',location.pathname);};
 
 async function startAudio() {
   if (audioLoading) return;
@@ -142,19 +158,22 @@ async function startAudio() {
     ctx=new (window.AudioContext || window.webkitAudioContext)();
     // Unlock in the tap handler, before fetching/decoding on mobile browsers.
     await ctx.resume();
-    const [chanter,drone]=await Promise.all(['chanter','drone'].map(async name=>{
+    const soundNames=selectedInstrument==='viola'?['viola']:['chanter','drone'];
+    const buffers=await Promise.all(soundNames.map(async name=>{
       const response=await fetch('/audio/'+name+'.wav');if(!response.ok)throw new Error('Sound could not load');
       return ctx.decodeAudioData(await response.arrayBuffer());
     }));
     if (attempt !== audioAttempt || !hasSound()) { await ctx.close(); return; }
     const melody=ctx.createBufferSource(), bass=ctx.createBufferSource();
     const melodyGain=ctx.createGain(), droneGain=ctx.createGain(), filter=ctx.createBiquadFilter();
-    melody.buffer=chanter;bass.buffer=drone;melody.loop=bass.loop=true;
+    melody.buffer=buffers[0];melody.loop=true;
     melodyGain.gain.value=0;droneGain.gain.value=0;filter.type='lowpass';filter.Q.value=.707;
-    bass.playbackRate.value=164.81/167;
     melody.connect(filter).connect(melodyGain).connect(ctx.destination);
-    bass.connect(droneGain).connect(ctx.destination);
-    melody.start();bass.start();audio={ctx,melody,bass,melodyGain,droneGain,filter};
+    if(selectedInstrument==='gaida'){
+      bass.buffer=buffers[1];bass.loop=true;bass.playbackRate.value=164.81/167;
+      bass.connect(droneGain).connect(ctx.destination);bass.start();
+    }
+    melody.start();audio={ctx,melody,bass:selectedInstrument==='gaida'?bass:null,melodyGain,droneGain,filter};
   }catch(e){if(ctx)await ctx.close();audioError=e.message;}
   finally { audioLoading=false; }
 }
@@ -273,9 +292,9 @@ function updateLocal(now) {
     if(audio) {
       const t=audio.ctx.currentTime;
       const open=[...room.holes].filter(h=>h==='0').length;
-      audio.melody.playbackRate.setTargetAtTime(notes[open].hz/334,t,.025);
+      audio.melody.playbackRate.setTargetAtTime(notes[open].hz/instruments[selectedInstrument].baseHz,t,.025);
       audio.melodyGain.gain.setTargetAtTime(gainTarget,t,.06);
-      audio.droneGain.gain.setTargetAtTime(pressure*.3,t,.09);
+      audio.droneGain.gain.setTargetAtTime(selectedInstrument==='gaida'?pressure*.3:0,t,.09);
       audio.filter.frequency.setTargetAtTime(filterFrequency,t,.05);
     }
     if(now-lastDisplay>100) {
@@ -328,4 +347,5 @@ setInterval(async()=>{
   }catch(e){if(currentSession===session)error(e.message+'. Retrying...');}finally{busy=false;}
 },220);
 
-if(new URLSearchParams(location.search).get('mode')==='solo')enterSolo();
+const initialParams=new URLSearchParams(location.search);
+if(initialParams.get('mode')==='solo')enterSolo(initialParams.get('instrument'));

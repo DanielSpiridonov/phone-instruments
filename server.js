@@ -43,8 +43,9 @@ http.createServer(async (req, res) => {
       const now = Date.now();
       if (body.action === 'create') {
         const key = code();
-        rooms.set(key, { holes: '1111111', noteHeld: false, energy: 0, tilt: 0, chanterAt: 0, bagAt: 0, updatedAt: now });
-        return json(res, 200, { code: key });
+        const instrument=['gaida','viola'].includes(body.instrument)?body.instrument:'gaida';
+        rooms.set(key, { instrument, holes: '1111111', noteHeld: false, energy: 0, tilt: 0, chanterAt: 0, bagAt: 0, updatedAt: now });
+        return json(res, 200, { code: key, instrument });
       }
       const key = String(body.code || '').toUpperCase();
       const room = rooms.get(key);
@@ -62,7 +63,7 @@ http.createServer(async (req, res) => {
         room.bagAt = now;
       } else return json(res, 400, { error: 'Invalid update' });
       room.updatedAt = now;
-      return json(res, 200, { ok: true });
+      return json(res, 200, { ok: true, instrument: room.instrument });
     } catch { return json(res, 400, { error: 'Invalid request' }); }
   }
 

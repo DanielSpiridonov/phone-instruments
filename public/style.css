@@ -6,4 +6,4 @@
 .security-notice{padding:14px 16px;border:2px solid #ffbd84;border-radius:12px;background:#422f29;color:#fff4e5;font-weight:700}
 
 .movement-feel{margin-top:20px;padding:16px;border:1px solid #497071;border-radius:14px;background:#204449}.movement-feel strong{display:block;font-size:1.05rem}.movement-feel .slider{margin-top:18px}.movement-feel .slider input{margin:12px 0}.movement-feel p{font-size:.85rem;margin:4px 0 0}
-#multipleSetup>#backToModes{margin-top:22px}.choices button{width:100%}#play>#chanter+#bag{margin-top:22px}
+#multipleSetup>#backToModes,#soloSetup>#backFromSolo{margin-top:22px}.choices button{width:100%}#play>#chanter+#bag{margin-top:22px}.instrument-buttons{display:grid;gap:10px;margin-top:16px}
