@@ -310,7 +310,7 @@ test('alone mode combines local note buttons, movement and audio without a room'
   assert.equal(p.elements.chanter.hidden,false);
   assert.equal(p.elements.bag.hidden,false);
   assert.equal(p.elements.sessionCard.hidden,true);
-  await p.elements.startMovement.onclick();
+  await p.elements.soloStartMovement.onclick();
   const note=p.elements.holes.children[3];
   const pointer={pointerId:1,pointerType:'touch',preventDefault(){}};
   note.listeners.pointerdown(pointer);
@@ -330,7 +330,7 @@ test('viola mode loads its own bowed voice, note range and no gaida drone',async
   assert.equal(p.eval('selectedInstrument'),'viola');
   assert.equal(p.elements.holes.children[0].textContent,'C3');
   assert.equal(p.elements.holes.children[7].textContent,'C4');
-  await p.elements.startMovement.onclick();
+  await p.elements.soloStartMovement.onclick();
   const note=p.elements.holes.children[7];
   const pointer={pointerId:2,pointerType:'touch',preventDefault(){}};
   note.listeners.pointerdown(pointer);
@@ -339,6 +339,19 @@ test('viola mode loads its own bowed voice, note range and no gaida drone',async
   assert.equal(p.eval('audio.droneGain.gain.value'),0);
   assert.equal(p.eval('audio.melody.playbackRate.value'),261.63/261.5);
   assert.ok(p.eval('audio.melodyGain.gain.value')>.25);
+});
+
+test('first solo note press unlocks audible manual airflow without finding lower controls',async()=>{
+  const p=phone(async()=>{throw Error('solo mode must not call the room API');});
+  p.elements.chooseSolo.onclick();p.elements.soloViola.onclick();
+  const pointer={pointerId:7,pointerType:'touch',preventDefault(){}};
+  p.elements.holes.children[0].listeners.pointerdown(pointer);
+  await new Promise(resolve=>setImmediate(resolve));
+  p.tick(120);
+  assert.equal(p.eval('mode'),'manual');
+  assert.equal(p.eval('audio.ctx.state'),'running');
+  assert.equal(p.eval('audio.melodyGain.gain.value'),.35*.65);
+  assert.equal(p.eval('audio.droneGain.gain.value'),0);
 });
 
 test('rotation alone changes tone but cannot inflate movement airflow',()=>{

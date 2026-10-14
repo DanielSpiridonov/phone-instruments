@@ -76,7 +76,11 @@ for (let i=0;i<notes.length;i++) {
   button.textContent=notes[i].name;button.setAttribute('aria-label','Hold '+notes[i].name);
   button.addEventListener('pointerdown',ev=>{
     if(!hasNotes()||(ev.pointerType==='mouse'&&ev.button!==0))return;
-    ev.preventDefault();button.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    // A note press is already a valid mobile user gesture, so solo play can
+    // unlock Web Audio here instead of making the user find a second control.
+    if(role==='solo'&&!audio&&!audioLoading)startAudio();
+    button.setPointerCapture(ev.pointerId);
     heldNotes.set('pointer:'+ev.pointerId,i);updateHeldNotes();
   });
   const release=ev=>{if(heldNotes.delete('pointer:'+ev.pointerId))updateHeldNotes();};
@@ -86,6 +90,7 @@ for (let i=0;i<notes.length;i++) {
   button.addEventListener('keydown',ev=>{
     if(hasNotes()&&[' ','Enter'].includes(ev.key)) {
       ev.preventDefault();if(ev.repeat)return;
+      if(role==='solo'&&!audio&&!audioLoading)startAudio();
       heldNotes.set('key:'+i+':'+ev.key,i);updateHeldNotes();
     }
   });
@@ -108,6 +113,7 @@ function showInstrument(nextRole) {
   $('start').hidden=true;$('play').hidden=false;
   $('sessionCard').hidden=nextRole==='solo';
   $('chanter').hidden=!hasNotes();$('bag').hidden=!hasSound();
+  $('soloSoundStart').hidden=nextRole!=='solo';
   $('securityNotice').hidden=!hasSound()||window.isSecureContext;
   $('chanterLabel').textContent=nextRole==='solo'?'ONE PHONE · NOTES':'PHONE 1 · CHANTER';
   $('bagLabel').textContent=nextRole==='solo'?'ONE PHONE · MOVEMENT & SOUND':'PHONE 2 · BAG';
@@ -174,7 +180,7 @@ async function startAudio() {
       bass.connect(droneGain).connect(ctx.destination);bass.start();
     }
     melody.start();audio={ctx,melody,bass:selectedInstrument==='gaida'?bass:null,melodyGain,droneGain,filter};
-  }catch(e){if(ctx)await ctx.close();audioError=e.message;}
+  }catch(e){if(ctx)await ctx.close();audioError=e.message;$('playStatus').textContent='Audio could not start: '+e.message;error('Audio could not start: '+e.message);}
   finally { audioLoading=false; }
 }
 function stopAudio(){audioAttempt++;if(audio){audio.ctx.close();audio=null;}$('audio').textContent='Start audio';}
@@ -230,6 +236,7 @@ $('startMovement').onclick=()=>{
   const playback=startAudio();
   return Promise.all([permission,playback]);
 };
+$('soloStartMovement').onclick=()=>$('startMovement').onclick();
 window.addEventListener('devicemotion',ev=>{
   if(!hasSound()||!['waiting','motion'].includes(mode))return;
   if(!motion.sample(ev,performance.now()))return;
