@@ -5,25 +5,35 @@ const path = require('node:path');
 const sampleRate = 44100;
 const seconds = 4;
 const samples = sampleRate * seconds;
-const fundamental = 1046 / seconds; // 261.5 Hz, an exact number of cycles per loop.
-const harmonics = [1, .52, .34, .22, .15, .1, .075, .052, .038, .028, .02, .015];
+const fundamental = 784 / seconds; // G3, with an exact number of cycles per loop.
+const harmonicCount = 24;
 const pcm = new Int16Array(samples);
 let peak = 0;
 const values = new Float64Array(samples);
 
+const bell = (frequency,center,width) => Math.exp(-.5*((frequency-center)/width)**2);
+const harmonicGain = number => {
+  const frequency=number*fundamental;
+  // Viola body resonances: relatively little fundamental, then a woody
+  // low-mid body and enough 1–3 kHz bow presence to avoid a bass-like tone.
+  const body=.12+1.15*bell(frequency,560,210)+.72*bell(frequency,1080,360)+.48*bell(frequency,2350,760);
+  const fundamentalReduction=number===1?.32:1;
+  return fundamentalReduction*body/number**.78;
+};
+
 for (let i = 0; i < samples; i++) {
   const t = i / sampleRate;
-  const vibrato = .055 * Math.sin(2 * Math.PI * 5 * t) + .014 * Math.sin(2 * Math.PI * 6 * t);
+  const vibrato = .31 * Math.sin(2 * Math.PI * 5 * t) + .07 * Math.sin(2 * Math.PI * 6 * t);
   const phase = 2 * Math.PI * fundamental * t + vibrato;
   let value = 0;
-  for (let h = 0; h < harmonics.length; h++) {
+  for (let h = 0; h < harmonicCount; h++) {
     const number = h + 1;
-    value += harmonics[h] * Math.sin(number * phase + (h % 3) * .17);
+    value += harmonicGain(number) * Math.sin(number * phase + (h % 4) * .21);
   }
   // Periodic high partials imitate bow friction while keeping the loop seamless.
-  value += .018 * Math.sin(2 * Math.PI * 3989.25 * t);
-  value += .012 * Math.sin(2 * Math.PI * 5744.5 * t + .8);
-  value *= .91 + .06 * Math.sin(2 * Math.PI * t) + .03 * Math.sin(4 * Math.PI * t + .4);
+  value += .01 * Math.sin(2 * Math.PI * 3528 * t);
+  value += .007 * Math.sin(2 * Math.PI * 5096 * t + .8);
+  value *= .94 + .04 * Math.sin(2 * Math.PI * t) + .02 * Math.sin(4 * Math.PI * t + .4);
   values[i] = value;
   peak = Math.max(peak, Math.abs(value));
 }

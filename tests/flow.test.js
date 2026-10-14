@@ -328,8 +328,8 @@ test('viola mode loads its own bowed voice, note range and no gaida drone',async
   const p=phone(async()=>{throw Error('solo mode must not call the room API');});
   p.elements.chooseSolo.onclick();p.elements.soloViola.onclick();
   assert.equal(p.eval('selectedInstrument'),'viola');
-  assert.equal(p.elements.holes.children[0].textContent,'C3');
-  assert.equal(p.elements.holes.children[7].textContent,'C4');
+  assert.equal(p.elements.holes.children[0].textContent,'G3');
+  assert.equal(p.elements.holes.children[7].textContent,'G4');
   await p.elements.soloStartMovement.onclick();
   const note=p.elements.holes.children[7];
   const pointer={pointerId:2,pointerType:'touch',preventDefault(){}};
@@ -337,7 +337,7 @@ test('viola mode loads its own bowed voice, note range and no gaida drone',async
   for(let i=0;i<35;i++){p.events.devicemotion(linear(1.62));p.tick();}
   assert.equal(p.eval('audio.bass'),null);
   assert.equal(p.eval('audio.droneGain.gain.value'),0);
-  assert.equal(p.eval('audio.melody.playbackRate.value'),261.63/261.5);
+  assert.equal(p.eval('audio.melody.playbackRate.value'),392/196);
   assert.ok(p.eval('audio.melodyGain.gain.value')>.25);
 });
 

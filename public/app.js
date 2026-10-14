@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const instruments = {
   gaida:{name:'Gaida',baseHz:334,notes:[{name:'E4',hz:329.63},{name:'F♯4',hz:369.99},{name:'G♯4',hz:415.3},{name:'A4',hz:440},{name:'B4',hz:493.88},{name:'C♯5',hz:554.37},{name:'D5',hz:587.33},{name:'E5',hz:659.25}]},
-  viola:{name:'Viola',baseHz:261.5,notes:[{name:'C3',hz:130.81},{name:'D3',hz:146.83},{name:'E♭3',hz:155.56},{name:'F3',hz:174.61},{name:'G3',hz:196},{name:'A♭3',hz:207.65},{name:'B♭3',hz:233.08},{name:'C4',hz:261.63}]}
+  viola:{name:'Viola',baseHz:196,notes:[{name:'G3',hz:196},{name:'A3',hz:220},{name:'B♭3',hz:233.08},{name:'C4',hz:261.63},{name:'D4',hz:293.66},{name:'E♭4',hz:311.13},{name:'F4',hz:349.23},{name:'G4',hz:392}]}
 };
 let selectedInstrument = 'gaida', notes = instruments.gaida.notes;
 const room = {holes:'1111111',noteHeld:false,energy:0,tilt:0,chanterAt:0,bagAt:0};
@@ -166,7 +166,7 @@ async function startAudio() {
     await ctx.resume();
     const soundNames=selectedInstrument==='viola'?['viola']:['chanter','drone'];
     const buffers=await Promise.all(soundNames.map(async name=>{
-      const response=await fetch('/audio/'+name+'.wav');if(!response.ok)throw new Error('Sound could not load');
+      const response=await fetch('/audio/'+name+'.wav'+(name==='viola'?'?v=2':''));if(!response.ok)throw new Error('Sound could not load');
       return ctx.decodeAudioData(await response.arrayBuffer());
     }));
     if (attempt !== audioAttempt || !hasSound()) { await ctx.close(); return; }
@@ -292,7 +292,8 @@ function updateLocal(now) {
       $('tiltStatus').textContent='No tilt events arrived. Airflow still works; check Safari motion and orientation access.';
     }
     airflow=mode==='manual'?Number($('manual').value):mode==='motion'?motion.step(now,dt):0;
-    const filterFrequency=mode==='manual'&&tone.count===0?2600:tone.step(now,dt);
+    const rawFilter=mode==='manual'&&tone.count===0?2600:tone.step(now,dt);
+    const filterFrequency=selectedInstrument==='viola'?Math.max(2800,rawFilter):rawFilter;
     const noteActive=room.noteHeld && (role==='solo'||now-lastRoomRead<1500);
     const pressure=noteActive?clamp(airflow/100,0,1):0;
     gainTarget=pressure*.65;
